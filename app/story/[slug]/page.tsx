@@ -7,7 +7,7 @@ import { StoryShareActions } from "@/components/story-share-actions";
 import { getStoryBySlug } from "@/lib/news";
 import { SITE_URL } from "@/lib/site";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params; const story = await getStoryBySlug(slug);
   if (!story) return {};
