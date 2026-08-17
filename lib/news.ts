@@ -91,7 +91,7 @@ function parseRss(xml: string, source: string): Story[] {
     const item = match[1]; const title = node(item, "title");
     const url = node(item, "link") || node(item, "guid"); const summary = node(item, "description");
     const suppliedBody = cleanArticle(rawNode(item, "content:encoded") || rawNode(item, "content"));
-    const body = suppliedBody.length > summary.length + 180 ? suppliedBody.slice(0, 20_000) : undefined;
+    const body = suppliedBody.length > summary.length + 180 ? suppliedBody : undefined;
     const image = item.match(/<enclosure[^>]+url=["']([^"']+)/i)?.[1]
       || item.match(/<media:(?:content|thumbnail)[^>]+url=["']([^"']+)/i)?.[1]
       || item.match(/<(?:img|image)[^>]+(?:src|url)=["']([^"']+)/i)?.[1]
@@ -128,7 +128,7 @@ async function fetchLiveNewsSnapshot(): Promise<Story[]> {
   const rssStories = batches.flat().filter((story) => financialNews.test(`${story.headline} ${story.summary}`));
   return dedupe([...rssStories, ...gdelt.filter((story) => financialNews.test(`${story.headline} ${story.summary}`))]);
 }
-const getCachedLiveNews = unstable_cache(fetchLiveNewsSnapshot, ["live-news-v4"], { revalidate: 60, tags: ["live-news"] });
+const getCachedLiveNews = unstable_cache(fetchLiveNewsSnapshot, ["live-news-v5"], { revalidate: 60, tags: ["live-news"] });
 export async function getLiveNews(): Promise<Story[]> { return getCachedLiveNews(); }
 
 export type NewsPage = { stories: Story[]; nextCursor: string | null };
@@ -143,5 +143,5 @@ async function findStoryBySlug(slug: string) {
   const published = Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])); const day = Math.max(1, Math.round((Date.now() - published) / 86_400_000)); if (day > 30) return undefined;
   return (await gdeltWindow(day)).find((story) => story.slug === slug);
 }
-const getCachedStoryBySlug = unstable_cache(findStoryBySlug, ["story-by-slug-v3"], { revalidate: 3600, tags: ["stories"] });
+const getCachedStoryBySlug = unstable_cache(findStoryBySlug, ["story-by-slug-v4"], { revalidate: 3600, tags: ["stories"] });
 export const getStoryBySlug = cache((slug: string) => getCachedStoryBySlug(slug));

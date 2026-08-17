@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Icon } from "@/components/icon";
 import { NewsImage } from "@/components/news-image";
 import { StoryShareActions } from "@/components/story-share-actions";
@@ -16,6 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 export default async function StoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params; const story = await getStoryBySlug(slug); if (!story) notFound();
+  if (!story.body) redirect(story.sourceUrl);
   const published = new Intl.DateTimeFormat("en-IN", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(new Date(story.publishedAt));
   const articleParagraphs = (story.body || story.summary).split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean);
   const hasPublisherBody = Boolean(story.body);
