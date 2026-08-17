@@ -15,7 +15,7 @@ const tickerMap: Record<string, string> = {
 };
 
 function clean(value = "") {
-  return value.replace(/^<!\[CDATA\[|\]\]>$/g, "").replace(/<[^>]*>/g, " ")
+  return value.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]*>/g, " ")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
