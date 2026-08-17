@@ -1,5 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { cache } from "react";
+import { unstable_cache } from "next/cache";
 import type { Story } from "./types";
 
 const feeds = [
@@ -15,10 +17,11 @@ const tickerMap: Record<string, string> = {
 };
 
 function clean(value = "") {
-  return value.replace(/<!\[CDATA\[|\]\]>/g, "").replace(/<[^>]*>/g, " ")
+  return value.replace(/<!\[CDATA\[/g, "").replace(/<[^>]*>/g, " ")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
     .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\s+/g, " ").trim();
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\]\]>/g, "")
+    .replace(/\s+/g, " ").trim();
 }
 function node(item: string, tag: string) {
   return clean(item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]);
@@ -93,7 +96,7 @@ async function gdeltWindow(dayOffset = 0): Promise<Story[]> {
     const params = new URLSearchParams({ query: "(markets OR stocks OR economy OR business OR earnings) sourcelang:english", mode: "artlist", maxrecords: "100", format: "json", sort: "datedesc" });
     if (dayOffset === 0) params.set("timespan", "24h");
     else { const end = new Date(Date.now() - dayOffset * 86_400_000); const start = new Date(end.getTime() - 86_400_000); params.set("startdatetime", gdeltTimestamp(start)); params.set("enddatetime", gdeltTimestamp(end)); }
-    const response = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { next: { revalidate: dayOffset ? 3600 : 120 }, signal: AbortSignal.timeout(10000) }); if (!response.ok) return [];
+    const response = await fetch(`https://api.gdeltproject.org/api/v2/doc/doc?${params}`, { next: { revalidate: dayOffset ? 3600 : 120 }, signal: AbortSignal.timeout(5000) }); if (!response.ok) return [];
     const data = await response.json() as { articles?: GdeltArticle[] };
     return (data.articles || []).filter((item) => item.title && item.url).map((item) => enrich({ title: clean(item.title), summary: "Developing report indexed from the original publisher. Open the source for the complete article and primary reporting.", url: item.url, image: item.socialimage, source: item.domain.replace(/^www\./, ""), publishedAt: item.seendate ? `${item.seendate.slice(0,4)}-${item.seendate.slice(4,6)}-${item.seendate.slice(6,8)}T${item.seendate.slice(9,11)}:${item.seendate.slice(11,13)}:00Z` : new Date().toISOString() }));
   } catch { return []; }
@@ -106,23 +109,28 @@ function dedupe(stories: Story[]) { const unique = new Map<string, Story>(); sto
 export function filterNews(stories: Story[], filters: NewsFilters = {}) {
   return stories.filter((story) => (!filters.category || filters.category === "All News" || story.category === filters.category) && (!filters.sector || story.sector === filters.sector));
 }
-export async function getLiveNews(): Promise<Story[]> {
+async function fetchLiveNewsSnapshot(): Promise<Story[]> {
   const [gdelt, ...batches] = await Promise.all([gdeltWindow(0), ...feeds.map(async (feed) => {
-    try { const response = await fetch(feed.url, { headers: { "User-Agent": "QuantifyNews/1.0 (+https://quantifyterminal.com)" }, next: { revalidate: 15 }, signal: AbortSignal.timeout(8000) }); return response.ok ? parseRss(await response.text(), feed.name) : []; }
+    try { const response = await fetch(feed.url, { headers: { "User-Agent": "QuantifyNews/1.0 (+https://quantifyterminal.com)" }, next: { revalidate: 120 }, signal: AbortSignal.timeout(5000) }); return response.ok ? parseRss(await response.text(), feed.name) : []; }
     catch { return []; }
   })]);
   const rssStories = batches.flat().filter((story) => financialNews.test(`${story.headline} ${story.summary}`));
   return dedupe([...rssStories, ...gdelt.filter((story) => financialNews.test(`${story.headline} ${story.summary}`))]);
 }
+const getCachedLiveNews = unstable_cache(fetchLiveNewsSnapshot, ["live-news-v3"], { revalidate: 60, tags: ["live-news"] });
+export async function getLiveNews(): Promise<Story[]> { return getCachedLiveNews(); }
+
 export type NewsPage = { stories: Story[]; nextCursor: string | null };
 export async function getNewsPage(cursor = "l:0", limit = 20, filters: NewsFilters = {}): Promise<NewsPage> {
   const safeLimit = Math.min(Math.max(limit, 5), 30); const [mode, first = "0", second = "0"] = cursor.split(":");
-  if (mode === "h") { const day = Math.max(1, Number(first) || 1); const offset = Math.max(0, Number(second) || 0); const history = filterNews(dedupe((await gdeltWindow(day)).filter((story) => financialNews.test(`${story.headline} ${story.summary}`))), filters); const stories = history.slice(offset, offset + safeLimit); const nextCursor = offset + safeLimit < history.length ? `h:${day}:${offset + safeLimit}` : `h:${day + 1}:0`; return { stories, nextCursor }; }
+  if (mode === "h") { const day = Math.max(1, Number(first) || 1); if (day > 30) return { stories: [], nextCursor: null }; const offset = Math.max(0, Number(second) || 0); const history = filterNews(dedupe((await gdeltWindow(day)).filter((story) => financialNews.test(`${story.headline} ${story.summary}`))), filters); const stories = history.slice(offset, offset + safeLimit); const nextCursor = stories.length === 0 ? null : offset + safeLimit < history.length ? `h:${day}:${offset + safeLimit}` : `h:${day + 1}:0`; return { stories, nextCursor }; }
   const offset = Math.max(0, Number(first) || 0); const live = filterNews(await getLiveNews(), filters); const stories = live.slice(offset, offset + safeLimit); const nextCursor = offset + safeLimit < live.length ? `l:${offset + safeLimit}` : "h:1:0"; return { stories, nextCursor };
 }
-export async function getStoryBySlug(slug: string) {
+async function findStoryBySlug(slug: string) {
   const live = await getLiveNews(); const current = live.find((story) => story.slug === slug); if (current) return current;
   const dateMatch = slug.match(/^(\d{4})(\d{2})(\d{2})-/); if (!dateMatch) return undefined;
-  const published = Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])); const day = Math.max(1, Math.round((Date.now() - published) / 86_400_000));
+  const published = Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])); const day = Math.max(1, Math.round((Date.now() - published) / 86_400_000)); if (day > 30) return undefined;
   return (await gdeltWindow(day)).find((story) => story.slug === slug);
 }
+const getCachedStoryBySlug = unstable_cache(findStoryBySlug, ["story-by-slug-v2"], { revalidate: 3600, tags: ["stories"] });
+export const getStoryBySlug = cache((slug: string) => getCachedStoryBySlug(slug));
