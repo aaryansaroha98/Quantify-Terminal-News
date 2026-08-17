@@ -3,6 +3,7 @@ export type Story = {
   slug: string;
   headline: string;
   summary: string;
+  body?: string;
   category: string;
   sector?: string;
   source: string;

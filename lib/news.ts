@@ -23,9 +23,18 @@ function clean(value = "") {
     .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\]\]>/g, "")
     .replace(/\s+/g, " ").trim();
 }
-function node(item: string, tag: string) {
-  return clean(item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1]);
+function cleanArticle(value = "") {
+  return value.replace(/<!\[CDATA\[/g, "")
+    .replace(/<\/(?:p|div|li|h[1-6])>/gi, "\n\n").replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, " ").replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    .replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/\]\]>/g, "")
+    .replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
+function rawNode(item: string, tag: string) {
+  return item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"))?.[1] || "";
+}
+function node(item: string, tag: string) { return clean(rawNode(item, tag)); }
 function normalizeImage(value?: string) {
   if (!value) return undefined;
   const decoded = value.replace(/&amp;/g, "&").trim();
@@ -65,7 +74,7 @@ function sectorFor(text: string) {
   if (/industrial|manufacturing|infrastructure|defence|aerospace/.test(value)) return "Industrials";
   return undefined;
 }
-function enrich(base: { title: string; summary: string; url: string; image?: string; source: string; publishedAt: string }): Story {
+function enrich(base: { title: string; summary: string; body?: string; url: string; image?: string; source: string; publishedAt: string }): Story {
   const fullText = `${base.title} ${base.summary}`;
   const category = categoryFor(fullText, base.url);
   const sector = sectorFor(fullText);
@@ -74,19 +83,21 @@ function enrich(base: { title: string; summary: string; url: string; image?: str
   const hash = createHash("sha1").update(base.url).digest("hex").slice(0, 10);
   const words = base.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 72);
   const dateKey = base.publishedAt.slice(0, 10).replace(/-/g, "");
-  return { id: hash, slug: `${dateKey}-${words}-${hash}`, headline: base.title, summary: base.summary || "This is a developing financial-market story. Open the original report for complete details.", category, sector, source: base.source, sourceUrl: base.url, image: normalizeImage(base.image), publishedAt: base.publishedAt, tickers };
+  return { id: hash, slug: `${dateKey}-${words}-${hash}`, headline: base.title, summary: base.summary || "This is a developing financial-market story. Open the original report for complete details.", body: base.body, category, sector, source: base.source, sourceUrl: base.url, image: normalizeImage(base.image), publishedAt: base.publishedAt, tickers };
 }
 
 function parseRss(xml: string, source: string): Story[] {
   return [...xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi)].map((match) => {
     const item = match[1]; const title = node(item, "title");
     const url = node(item, "link") || node(item, "guid"); const summary = node(item, "description");
+    const suppliedBody = cleanArticle(rawNode(item, "content:encoded") || rawNode(item, "content"));
+    const body = suppliedBody.length > summary.length + 180 ? suppliedBody.slice(0, 20_000) : undefined;
     const image = item.match(/<enclosure[^>]+url=["']([^"']+)/i)?.[1]
       || item.match(/<media:(?:content|thumbnail)[^>]+url=["']([^"']+)/i)?.[1]
       || item.match(/<(?:img|image)[^>]+(?:src|url)=["']([^"']+)/i)?.[1]
       || item.match(/(?:og:image|twitter:image)[^>]+content=["']([^"']+)/i)?.[1];
     const date = node(item, "pubDate") || node(item, "dc:date");
-    return title && url ? enrich({ title, summary, url, image, source, publishedAt: new Date(date || Date.now()).toISOString() }) : null;
+    return title && url ? enrich({ title, summary, body, url, image, source, publishedAt: new Date(date || Date.now()).toISOString() }) : null;
   }).filter((story): story is Story => Boolean(story));
 }
 type GdeltArticle = { url: string; title: string; seendate: string; socialimage?: string; domain: string };
@@ -117,7 +128,7 @@ async function fetchLiveNewsSnapshot(): Promise<Story[]> {
   const rssStories = batches.flat().filter((story) => financialNews.test(`${story.headline} ${story.summary}`));
   return dedupe([...rssStories, ...gdelt.filter((story) => financialNews.test(`${story.headline} ${story.summary}`))]);
 }
-const getCachedLiveNews = unstable_cache(fetchLiveNewsSnapshot, ["live-news-v3"], { revalidate: 60, tags: ["live-news"] });
+const getCachedLiveNews = unstable_cache(fetchLiveNewsSnapshot, ["live-news-v4"], { revalidate: 60, tags: ["live-news"] });
 export async function getLiveNews(): Promise<Story[]> { return getCachedLiveNews(); }
 
 export type NewsPage = { stories: Story[]; nextCursor: string | null };
@@ -132,5 +143,5 @@ async function findStoryBySlug(slug: string) {
   const published = Date.UTC(Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3])); const day = Math.max(1, Math.round((Date.now() - published) / 86_400_000)); if (day > 30) return undefined;
   return (await gdeltWindow(day)).find((story) => story.slug === slug);
 }
-const getCachedStoryBySlug = unstable_cache(findStoryBySlug, ["story-by-slug-v2"], { revalidate: 3600, tags: ["stories"] });
+const getCachedStoryBySlug = unstable_cache(findStoryBySlug, ["story-by-slug-v3"], { revalidate: 3600, tags: ["stories"] });
 export const getStoryBySlug = cache((slug: string) => getCachedStoryBySlug(slug));

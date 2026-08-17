@@ -30,13 +30,22 @@ export function NewsTerminal({ initialStories, initialCursor, initialCategory = 
   const [query, setQuery] = useState("");
   const [saved, setSaved] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [updated, setUpdated] = useState(new Date());
   const [cursor, setCursor] = useState(initialCursor);
   const [hasMore, setHasMore] = useState(Boolean(initialCursor));
   const [loadingMore, setLoadingMore] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const sector = initialSector;
+  useEffect(() => {
+    if (!searchOpen) return;
+    const frame = window.requestAnimationFrame(() => searchInputRef.current?.focus());
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") { setSearchOpen(false); setQuery(""); } };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => { window.cancelAnimationFrame(frame); document.removeEventListener("keydown", closeOnEscape); };
+  }, [searchOpen]);
   useEffect(() => {
     let newsBusy = false; let lastRefresh = Date.now();
     const refreshNews = async () => { if (newsBusy || document.visibilityState !== "visible" || Date.now() - lastRefresh < 60_000) return; newsBusy = true; try { const response = await fetch(newsUrl("l:0", category, sector), { signal: AbortSignal.timeout(8000) }); const data = await response.json() as { stories?: Story[]; updatedAt?: string }; if (data.stories?.length) { setStories((current) => mergeStories(current, data.stories!)); setUpdated(new Date(data.updatedAt || Date.now())); } lastRefresh = Date.now(); } catch {} finally { newsBusy = false; } };
@@ -67,7 +76,7 @@ export function NewsTerminal({ initialStories, initialCursor, initialCategory = 
       <button className="icon-button mobile-menu" onClick={() => setMenuOpen(!menuOpen)} aria-label="Toggle sections"><Icon name="menu" /></button>
       <Link className="brand" href="/"><span>Quantify Terminal</span><b>Newsroom</b></Link>
       <nav className="product-nav"><Link href="/" className="active">Top Stories</Link><Link href="/#briefs">Latest News</Link><Link href="/latest">All Stories</Link><Link href="/about">About</Link></nav>
-      <div className="top-actions"><label className="search"><Icon name="search" size={17}/><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search companies, markets or topics" aria-label="Search news"/></label><a className="terminal-cta-top" href="https://www.quantifyterminal.com/download" target="_blank" rel="noopener noreferrer">Download Terminal <Icon name="arrow" size={14}/></a></div>
+      <div className="top-actions"><button className="mobile-search-toggle" type="button" aria-label={searchOpen ? "Close search" : "Open search"} aria-expanded={searchOpen} aria-controls="news-search" onClick={() => { setSearchOpen((value) => !value); setMenuOpen(false); if (searchOpen) setQuery(""); }}>{searchOpen ? "×" : <Icon name="search" size={18}/>}</button><div className={`search ${searchOpen ? "search--open" : ""}`} id="news-search" role="search"><Icon name="search" size={17}/><input ref={searchInputRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search companies, markets or topics" aria-label="Search news"/><button className="search-close" type="button" aria-label="Clear and close search" onClick={() => { setQuery(""); setSearchOpen(false); }}>×</button></div><a className="terminal-cta-top" href="https://www.quantifyterminal.com/download" target="_blank" rel="noopener noreferrer">Download Terminal <Icon name="arrow" size={14}/></a></div>
     </header>
     <WorldClockBar/>
     <section className="headline-rail" aria-label="Latest live financial headlines"><span><i/> LIVE NEWS</span><div className="headline-ticker-window"><div className="headline-ticker-track">{[...stories.slice(0, 10), ...stories.slice(0, 10)].map((story, index) => <Link prefetch={false} href={`/story/${story.slug}`} key={`${story.id}-${index}`}><time>{storyTime(story.publishedAt)}</time><b>{story.source}</b>{story.headline}</Link>)}</div></div><small>REFRESHED {storyTime(updated.toISOString())} IST</small></section>
@@ -86,7 +95,7 @@ export function NewsTerminal({ initialStories, initialCursor, initialCategory = 
           <div ref={sentinelRef} className="infinite-loader" aria-live="polite">{loadingMore ? <><i/><span>Loading more live news…</span></> : hasMore ? <span>Scroll for more news</span> : <span>News archive reached</span>}</div>
         </section>
       </main>
-      <aside className="right-rail" id="latest"><section className="rail-panel latest-panel"><div className="rail-heading"><span>LIVE WIRE</span><i>UPDATING</i></div>{stories.slice(0, 8).map((story, index) => <Link prefetch={false} href={`/story/${story.slug}`} className={`latest-item ${story.image ? "" : "latest-item--no-image"}`} key={story.id}>{story.image && <span className="latest-thumb"><NewsImage src={story.image} alt={story.headline}/></span>}<div><time>{storyTime(story.publishedAt)} IST</time><span>{story.source} · {story.category}</span><h3>{story.headline}</h3><div>{story.tickers.slice(0,2).map((ticker) => <b key={ticker}>{ticker}</b>)}</div></div><em>{String(index + 1).padStart(2,"0")}</em></Link>)}</section><section className="rail-panel source-panel"><div className="rail-heading"><span>NEWS SOURCES</span><small>LIVE</small></div><p>Economic Times</p><p>CNBC</p><p>CoinDesk</p><p>GDELT global index <small>fallback</small></p></section></aside>
+      <aside className="right-rail" id="latest"><section className="rail-panel latest-panel"><div className="rail-heading"><span>LIVE WIRE</span><i>UPDATING</i></div>{stories.slice(0, 8).map((story, index) => <Link prefetch={false} href={`/story/${story.slug}`} className={`latest-item ${story.image ? "" : "latest-item--no-image"}`} key={story.id}>{story.image && <span className="latest-thumb"><NewsImage src={story.image} alt={story.headline}/></span>}<div><time>{storyTime(story.publishedAt)} IST</time><span>{story.source} · {story.category}</span><h3>{story.headline}</h3><div>{story.tickers.slice(0,2).map((ticker) => <b key={ticker}>{ticker}</b>)}</div></div><em>{String(index + 1).padStart(2,"0")}</em></Link>)}</section></aside>
     </div>
   </div>;
 }

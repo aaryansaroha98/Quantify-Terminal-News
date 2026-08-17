@@ -1,4 +1,4 @@
-type IconName = "search" | "bell" | "bookmark" | "clock" | "arrow" | "terminal" | "menu" | "pulse" | "external";
+type IconName = "search" | "bell" | "bookmark" | "clock" | "arrow" | "terminal" | "menu" | "pulse" | "external" | "share";
 
 const paths: Record<IconName, React.ReactNode> = {
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
@@ -10,6 +10,7 @@ const paths: Record<IconName, React.ReactNode> = {
   menu: <><path d="M4 7h16M4 12h16M4 17h16"/></>,
   pulse: <path d="M3 12h4l2-7 4 14 2-7h6"/>,
   external: <><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 13v6H5V6h6"/></>,
+  share: <><circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5"/></>,
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {

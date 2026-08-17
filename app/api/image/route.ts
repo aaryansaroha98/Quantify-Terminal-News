@@ -1,9 +1,7 @@
 import { NextRequest } from "next/server";
+import { isAllowedPublisherImage } from "@/lib/image-policy";
 
-const allowedHosts = ["img.etimg.com", "image.cnbcfm.com", "images.cnbcfm.com", "cdn.sanity.io", "www.coindesk.com", "assets.coindesk.com"];
-function isAllowed(url: URL) {
-  return url.protocol === "https:" && allowedHosts.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
-}
+function isAllowed(url: URL) { return isAllowedPublisherImage(url); }
 async function fetchImage(url: URL, redirects = 0): Promise<Response> {
   if (!isAllowed(url) || redirects > 3) return new Response("Image source not allowed", { status: 403 });
   const response = await fetch(url, { redirect: "manual", headers: { Accept: "image/avif,image/webp,image/*", "User-Agent": "QuantifyNews/1.0" }, signal: AbortSignal.timeout(8000) });
