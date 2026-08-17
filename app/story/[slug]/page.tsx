@@ -9,7 +9,7 @@ export const revalidate = 30;
 export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params; const story = await getStoryBySlug(slug);
-  return story ? { title: `${story.headline} — Quantify Terminal Newsroom`, description: story.summary, openGraph: { title: story.headline, description: story.summary, images: story.image ? [story.image] : [] } } : {};
+  return story ? { title: story.headline, description: story.summary, alternates: { canonical: `/story/${story.slug}` }, openGraph: { title: story.headline, description: story.summary, url: `/story/${story.slug}`, type: "article", publishedTime: story.publishedAt, images: story.image ? [story.image] : [] } } : {};
 }
 export default async function StoryPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params; const story = await getStoryBySlug(slug); if (!story) notFound();

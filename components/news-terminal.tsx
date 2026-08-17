@@ -4,9 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "./icon";
 import { NewsImage } from "./news-image";
 import type { Story } from "@/lib/types";
+import { CATEGORY_LABELS, SECTOR_LABELS } from "@/lib/site";
 
-const categories = ["All News", "Markets", "Stocks", "India", "US Markets", "Global Markets", "Economy", "Companies", "Crypto", "Commodities", "Technology", "Geopolitics", "Earnings", "IPO", "M&A", "Central Banks"];
-const sectors = ["Technology", "Financials", "Energy", "Healthcare", "Automotive", "Consumer", "Industrials", "Real Estate", "Media", "Telecom"];
+const categories = CATEGORY_LABELS;
+const sectors = SECTOR_LABELS;
 const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
 const timeFormat = new Intl.DateTimeFormat("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata" });
 const worldClocks = [{ city: "NEW DELHI", zone: "Asia/Kolkata" }, { city: "LONDON", zone: "Europe/London" }, { city: "NEW YORK", zone: "America/New_York" }, { city: "TOKYO", zone: "Asia/Tokyo" }, { city: "SYDNEY", zone: "Australia/Sydney" }];
@@ -82,6 +83,5 @@ export function NewsTerminal({ initialStories, initialCursor, initialCategory = 
       </main>
       <aside className="right-rail" id="latest"><section className="rail-panel latest-panel"><div className="rail-heading"><span>LIVE WIRE</span><i>UPDATING</i></div>{stories.slice(0, 8).map((story, index) => <a href={`/story/${story.slug}`} className={`latest-item ${story.image ? "" : "latest-item--no-image"}`} key={story.id}>{story.image && <span className="latest-thumb"><NewsImage src={story.image} alt={story.headline}/></span>}<div><time>{storyTime(story.publishedAt)} IST</time><span>{story.source} · {story.category}</span><h3>{story.headline}</h3><div>{story.tickers.slice(0,2).map((ticker) => <b key={ticker}>{ticker}</b>)}</div></div><em>{String(index + 1).padStart(2,"0")}</em></a>)}</section><section className="rail-panel source-panel"><div className="rail-heading"><span>NEWS SOURCES</span><small>LIVE</small></div><p>Economic Times</p><p>CNBC</p><p>CoinDesk</p><p>GDELT global index <small>fallback</small></p></section></aside>
     </div>
-    <footer id="methodology"><div className="brand"><span>Quantify Terminal</span><b>Newsroom</b></div><p>Live reporting. Clear attribution.</p><div><a href="/methodology">Editorial methodology</a><a href="/sources">Sources</a><a href="https://quantifyterminal.com/#download">Download Terminal</a></div></footer>
   </div>;
 }

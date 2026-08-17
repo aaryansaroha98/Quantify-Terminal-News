@@ -19,7 +19,8 @@ Open `http://localhost:3000`.
 - **Live headline ticker:** The latest 10 real stories move continuously and refresh without reloading the page.
 - **Images:** Publisher-provided RSS/GDELT images with a resilient local Quantify fallback.
 - **Global clocks:** Live New Delhi, London, New York, Tokyo, and Sydney clocks.
-- **Pages:** Top stories, category desks, latest news, sourced story pages, source transparency, and editorial methodology.
+- **Pages:** Top stories, category desks, sector desks, latest news, sourced story pages, source transparency, editorial methodology, About, Contact, Privacy Policy, and Terms & Conditions.
+- **Discovery:** Canonical metadata, `robots.txt`, and a revalidated XML sitemap covering every permanent page, category, and sector route.
 
 No article feed is hardcoded. Publisher headlines, images, summaries, timestamps, and links remain attributed. Automated investment analysis is intentionally disabled until a reviewed AI analysis service is connected.
 
